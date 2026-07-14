@@ -5,19 +5,17 @@
 ---------------------------------------------------------------------------------
 -- observed memory locations
 
+--TODO: Broken on non-yoshis island stage: x, y, char, anim, jumps
+
 -- 4 byte DWORD unsigned Big Endian
 --versus mode
-local p1_dmg_loc = 0x0A4D74
-local p2_dmg_loc = 0x0A4DE8
-local p1_death_loc = 0x0A4D38
-local p2_death_loc = 0x0A4D3C
-
+-- local p1_dmg_loc = 0x0A4D74
+-- local p2_dmg_loc = 0x0A4DE8
+-- local p1_death_loc = 0x0A4D38 --60 --and 0x0A4D58
+-- local p2_death_loc = 0x0A4D3C --56 --0a4dac and 0a4dcc
 --byte training mode 
-local p1_tra_loc = 0x1909D4 -- 131607, 1909bf, 190a37, 190a3b, 190a4b, 284db7
-local p2_tra_loc = 0x284db4 --131604, 1909bc, 190a34, 190a38, 190a48, 284db4
-local dmg_offset = 76
---loc : 2638392
---dmg: 2641332
+-- local p1_tra_loc = 0x1909D4 -- 131607, 1909bf, 190a37, 190a3b, 190a4b, 284db7
+-- local p2_tra_loc = 0x284db4 --131604, 1909bc, 190a34, 190a38, 190a48, 284db4
 
 -- from the ui? not sure what object this is part of
 --minutes
@@ -43,6 +41,9 @@ local match_offset = 3
 local time_offset = 6
 local stock_offset = 7
 local stage_offset = 1
+-- 4 byte since theyre part of game object?
+local death_offset = 14
+local dmg_offset = 74
 
 -- start of game object
 local game_loc = 0xA4D08
@@ -145,10 +146,15 @@ local function update_game_info()
 	game.time_limit = mainmemory.readbyte(game_loc + time_offset) * 60
 	game.stock_limit = mainmemory.readbyte(game_loc + stock_offset) + 1 -- this value always reads as the actual stock number - 1 for some reason
 	game.stage = mainmemory.readbyte(game_loc + stage_offset)
-	-- Player type is stored here instead of player objects
+	-- Player type and damage is stored here instead of player objects
 	local game_players = game_loc + type_offset
 	for i = 0, 3 do
-		players[i+1].type = mainmemory.readbyte(game_players + 116 * i)
+		local curr_player = game_players + 116 * i
+		players[i+1].type = mainmemory.readbyte(curr_player)
+		if players[i+1].type ~= 2 then
+			players[i+1].dmg = mainmemory.read_u32_be(curr_player + dmg_offset)
+			players[i+1].deaths = mainmemory.read_u32_be(curr_player + death_offset)
+		end
 	end
 
 	if game.match_type == 1 then
@@ -176,17 +182,6 @@ local function update_coords(player_start, playerno)
 	end
 end
 
---wip: fix these for all players
-local function update_dmg()
-	players[1].dmg = mainmemory.read_u32_be(p1_dmg_loc)
-	players[2].dmg = mainmemory.read_u32_be(p2_dmg_loc)
-end
-
-local function update_deaths()
-	players[1].deaths = mainmemory.read_u32_be(p1_death_loc)
-	players[2].deaths = mainmemory.read_u32_be(p2_death_loc)
-end
-
 local function update_players()
 	for i = 0, 3 do
 		if players[i+1].type ~= 2 then --dont bother with absent characters
@@ -195,8 +190,6 @@ local function update_players()
 			players[i+1].anim = mainmemory.read_u16_be(playern + anim_offset)
 			players[i+1].jumps = mainmemory.readbyte(playern + jump_offset)
 			update_coords(playern, i+1)
-			update_dmg()
-			update_deaths()
 		end
 	end
 end
